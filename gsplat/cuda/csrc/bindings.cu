@@ -157,14 +157,11 @@ std::tuple<
     torch::Tensor,
     torch::Tensor,
     torch::Tensor,
-    torch::Tensor,
     torch::Tensor>
 project_gaussians_forward_tensor(
     const int num_points,
     torch::Tensor &means3d,
-    torch::Tensor &scales,
-    const float glob_scale,
-    torch::Tensor &quats,
+    torch::Tensor &covs3d,  // NEW: Input tensor for covs3d
     torch::Tensor &viewmat,
     const float fx,
     const float fy,
@@ -187,9 +184,6 @@ project_gaussians_forward_tensor(
 
     float4 intrins = {fx, fy, cx, cy};
 
-    // Triangular covariance.
-    torch::Tensor cov3d_d =
-        torch::zeros({num_points, 6}, means3d.options().dtype(torch::kFloat32));
     torch::Tensor xys_d =
         torch::zeros({num_points, 2}, means3d.options().dtype(torch::kFloat32));
     torch::Tensor depths_d =
@@ -208,9 +202,7 @@ project_gaussians_forward_tensor(
         N_THREADS>>>(
         num_points,
         (float3 *)means3d.contiguous().data_ptr<float>(),
-        (float3 *)scales.contiguous().data_ptr<float>(),
-        glob_scale,
-        (float4 *)quats.contiguous().data_ptr<float>(),
+        covs3d.contiguous().data_ptr<float>(),  // NEW: Pass covs3d tensor
         viewmat.contiguous().data_ptr<float>(),
         intrins,
         img_size_dim3,
@@ -218,7 +210,6 @@ project_gaussians_forward_tensor(
         block_width,
         clip_thresh,
         // Outputs.
-        cov3d_d.contiguous().data_ptr<float>(),
         (float2 *)xys_d.contiguous().data_ptr<float>(),
         depths_d.contiguous().data_ptr<float>(),
         radii_d.contiguous().data_ptr<int>(),
@@ -228,22 +219,18 @@ project_gaussians_forward_tensor(
     );
 
     return std::make_tuple(
-        cov3d_d, xys_d, depths_d, radii_d, conics_d, compensation_d, num_tiles_hit_d
+        xys_d, depths_d, radii_d, conics_d, compensation_d, num_tiles_hit_d
     );
 }
 
 std::tuple<
     torch::Tensor,
     torch::Tensor,
-    torch::Tensor,
-    torch::Tensor,
     torch::Tensor>
 project_gaussians_backward_tensor(
     const int num_points,
     torch::Tensor &means3d,
-    torch::Tensor &scales,
-    const float glob_scale,
-    torch::Tensor &quats,
+    torch::Tensor &covs3d,  // NEW: Input tensor for covs3d
     torch::Tensor &viewmat,
     const float fx,
     const float fy,
@@ -251,7 +238,6 @@ project_gaussians_backward_tensor(
     const float cy,
     const unsigned img_height,
     const unsigned img_width,
-    torch::Tensor &cov3d,
     torch::Tensor &radii,
     torch::Tensor &conics,
     torch::Tensor &compensation,
@@ -267,32 +253,22 @@ project_gaussians_backward_tensor(
 
     float4 intrins = {fx, fy, cx, cy};
 
-    const auto num_cov3d = num_points * 6;
-
-    // Triangular covariance.
     torch::Tensor v_cov2d =
         torch::zeros({num_points, 3}, means3d.options().dtype(torch::kFloat32));
     torch::Tensor v_cov3d =
         torch::zeros({num_points, 6}, means3d.options().dtype(torch::kFloat32));
     torch::Tensor v_mean3d =
         torch::zeros({num_points, 3}, means3d.options().dtype(torch::kFloat32));
-    torch::Tensor v_scale =
-        torch::zeros({num_points, 3}, means3d.options().dtype(torch::kFloat32));
-    torch::Tensor v_quat =
-        torch::zeros({num_points, 4}, means3d.options().dtype(torch::kFloat32));
 
     project_gaussians_backward_kernel<<<
         (num_points + N_THREADS - 1) / N_THREADS,
         N_THREADS>>>(
         num_points,
         (float3 *)means3d.contiguous().data_ptr<float>(),
-        (float3 *)scales.contiguous().data_ptr<float>(),
-        glob_scale,
-        (float4 *)quats.contiguous().data_ptr<float>(),
+        covs3d.contiguous().data_ptr<float>(),  // NEW: Pass covs3d tensor
         viewmat.contiguous().data_ptr<float>(),
         intrins,
         img_size_dim3,
-        cov3d.contiguous().data_ptr<float>(),
         radii.contiguous().data_ptr<int32_t>(),
         (float3 *)conics.contiguous().data_ptr<float>(),
         (float *)compensation.contiguous().data_ptr<float>(),
@@ -300,15 +276,12 @@ project_gaussians_backward_tensor(
         v_depth.contiguous().data_ptr<float>(),
         (float3 *)v_conic.contiguous().data_ptr<float>(),
         (float *)v_compensation.contiguous().data_ptr<float>(),
-        // Outputs.
         (float3 *)v_cov2d.contiguous().data_ptr<float>(),
-        v_cov3d.contiguous().data_ptr<float>(),
-        (float3 *)v_mean3d.contiguous().data_ptr<float>(),
-        (float3 *)v_scale.contiguous().data_ptr<float>(),
-        (float4 *)v_quat.contiguous().data_ptr<float>()
+        v_cov3d.contiguous().data_ptr<float>(),  // NEW: Output tensor for v_cov3d
+        (float3 *)v_mean3d.contiguous().data_ptr<float>()
     );
 
-    return std::make_tuple(v_cov2d, v_cov3d, v_mean3d, v_scale, v_quat);
+    return std::make_tuple(v_cov2d, v_cov3d, v_mean3d);
 }
 
 std::tuple<torch::Tensor, torch::Tensor> map_gaussian_to_intersects_tensor(

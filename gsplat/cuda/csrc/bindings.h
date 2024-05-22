@@ -45,14 +45,11 @@ std::tuple<
     torch::Tensor,
     torch::Tensor,
     torch::Tensor,
-    torch::Tensor,
     torch::Tensor>
 project_gaussians_forward_tensor(
     const int num_points,
     torch::Tensor &means3d,
-    torch::Tensor &scales,
-    const float glob_scale,
-    torch::Tensor &quats,
+    torch::Tensor &covs3d,
     torch::Tensor &viewmat,
     const float fx,
     const float fy,
@@ -67,15 +64,11 @@ project_gaussians_forward_tensor(
 std::tuple<
     torch::Tensor,
     torch::Tensor,
-    torch::Tensor,
-    torch::Tensor,
     torch::Tensor>
 project_gaussians_backward_tensor(
     const int num_points,
     torch::Tensor &means3d,
-    torch::Tensor &scales,
-    const float glob_scale,
-    torch::Tensor &quats,
+    torch::Tensor &covs3d,
     torch::Tensor &viewmat,
     const float fx,
     const float fy,
@@ -83,7 +76,6 @@ project_gaussians_backward_tensor(
     const float cy,
     const unsigned img_height,
     const unsigned img_width,
-    torch::Tensor &cov3d,
     torch::Tensor &radii,
     torch::Tensor &conics,
     torch::Tensor &compensation,

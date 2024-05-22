@@ -8,13 +8,10 @@
 __global__ void project_gaussians_backward_kernel(
     const int num_points,
     const float3* __restrict__ means3d,
-    const float3* __restrict__ scales,
-    const float glob_scale,
-    const float4* __restrict__ quats,
+    const float* __restrict__ covs3d,  // Changed from cov3d
     const float* __restrict__ viewmat,
     const float4 intrins,
     const dim3 img_size,
-    const float* __restrict__ cov3d,
     const int* __restrict__ radii,
     const float3* __restrict__ conics,
     const float* __restrict__ compensation,
@@ -24,9 +21,7 @@ __global__ void project_gaussians_backward_kernel(
     const float* __restrict__ v_compensation,
     float3* __restrict__ v_cov2d,
     float* __restrict__ v_cov3d,
-    float3* __restrict__ v_mean3d,
-    float3* __restrict__ v_scale,
-    float4* __restrict__ v_quat
+    float3* __restrict__ v_mean3d
 );
 
 // compute jacobians of output image wrt binned and sorted gaussians

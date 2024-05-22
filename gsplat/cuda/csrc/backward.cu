@@ -330,13 +330,10 @@ __global__ void rasterize_backward_kernel(
 __global__ void project_gaussians_backward_kernel(
     const int num_points,
     const float3* __restrict__ means3d,
-    const float3* __restrict__ scales,
-    const float glob_scale,
-    const float4* __restrict__ quats,
+    const float* __restrict__ covs3d,
     const float* __restrict__ viewmat,
     const float4 intrins,
     const dim3 img_size,
-    const float* __restrict__ cov3d,
     const int* __restrict__ radii,
     const float3* __restrict__ conics,
     const float* __restrict__ compensation,
@@ -346,9 +343,7 @@ __global__ void project_gaussians_backward_kernel(
     const float* __restrict__ v_compensation,
     float3* __restrict__ v_cov2d,
     float* __restrict__ v_cov3d,
-    float3* __restrict__ v_mean3d,
-    float3* __restrict__ v_scale,
-    float4* __restrict__ v_quat
+    float3* __restrict__ v_mean3d
 ) {
     unsigned idx = cg::this_grid().thread_rank(); // idx of thread within grid
     if (idx >= num_points || radii[idx] <= 0) {
@@ -374,25 +369,17 @@ __global__ void project_gaussians_backward_kernel(
     // get v_cov2d
     cov2d_to_conic_vjp(conics[idx], v_conic[idx], v_cov2d[idx]);
     cov2d_to_compensation_vjp(compensation[idx], conics[idx], v_compensation[idx], v_cov2d[idx]);
-    // get v_cov3d (and v_mean3d contribution)
+    // get v_cov3d
+    const float* cur_cov3d = &(covs3d[6 * idx]);
     project_cov3d_ewa_vjp(
         p_world,
-        &(cov3d[6 * idx]),
+        cur_cov3d,
         viewmat,
         fx,
         fy,
         v_cov2d[idx],
         v_mean3d[idx],
         &(v_cov3d[6 * idx])
-    );
-    // get v_scale and v_quat
-    scale_rot_to_cov3d_vjp(
-        scales[idx],
-        glob_scale,
-        quats[idx],
-        &(v_cov3d[6 * idx]),
-        v_scale[idx],
-        v_quat[idx]
     );
 }
 

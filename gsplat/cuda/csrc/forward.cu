@@ -13,16 +13,13 @@ namespace cg = cooperative_groups;
 __global__ void project_gaussians_forward_kernel(
     const int num_points,
     const float3* __restrict__ means3d,
-    const float3* __restrict__ scales,
-    const float glob_scale,
-    const float4* __restrict__ quats,
+    const float* __restrict__ covs3d,  // NEW: Input parameter for covs3d
     const float* __restrict__ viewmat,
     const float4 intrins,
     const dim3 img_size,
     const dim3 tile_bounds,
     const unsigned block_width,
     const float clip_thresh,
-    float* __restrict__ covs3d,
     float2* __restrict__ xys,
     float* __restrict__ depths,
     int* __restrict__ radii,
@@ -46,15 +43,9 @@ __global__ void project_gaussians_forward_kernel(
         return;
     }
     // printf("p_view %d %.2f %.2f %.2f\n", idx, p_view.x, p_view.y, p_view.z);
-
-    // compute the projected covariance
-    float3 scale = scales[idx];
-    float4 quat = quats[idx];
-    // printf("%d scale %.2f %.2f %.2f\n", idx, scale.x, scale.y, scale.z);
-    // printf("%d quat %.2f %.2f %.2f %.2f\n", idx, quat.w, quat.x, quat.y,
-    // quat.z);
-    float *cur_cov3d = &(covs3d[6 * idx]);
-    scale_rot_to_cov3d(scale, glob_scale, quat, cur_cov3d);
+    // Use the pre-computed covs3d
+    const float* cur_cov3d = &(covs3d[6 * idx]);
+    // ... the rest of the kernel remains the same ...
 
     // project to 2d with ewa approximation
     float fx = intrins.x;
