@@ -60,14 +60,37 @@ def project_gaussians(
     assert block_width > 1 and block_width <= 16, "block_width must be between 2 and 16"
     assert (quats.norm(dim=-1) - 1 < 1e-6).all(), "quats must be normalized"
 
-    # cov3d = torch.eye(3, device=means3d.device, dtype=means3d.dtype).unsqueeze(0).expand(
-    #     means3d.shape[0], -1, -1
-    # )  # TODO COMPUTE ACTUAL COV
-
     cov3d = scale_rot_to_cov3d(scales, glob_scale, quats)
-    cov3d_triu = pack_cov3d_triu(cov3d)
+    return project_gaussians_given_cov3d(
+        means3d,
+        cov3d,
+        viewmat,
+        fx,
+        fy,
+        cx,
+        cy,
+        img_height,
+        img_width,
+        block_width,
+        clip_thresh,
+    )
 
-    return _ProjectGaussians.apply(
+
+def project_gaussians_given_cov3d(
+    means3d: Float[Tensor, "*batch 3"],
+    cov3d: Float[Tensor, "*batch 3 3"],
+    viewmat: Float[Tensor, "4 4"],
+    fx: float,
+    fy: float,
+    cx: float,
+    cy: float,
+    img_height: int,
+    img_width: int,
+    block_width: int,
+    clip_thresh: float = 0.01,
+):
+    cov3d_triu = pack_cov3d_triu(cov3d)
+    xys, depths, radii, conics, comp, num_tiles_hit = _ProjectGaussians.apply(
         means3d.contiguous(),
         cov3d_triu,
         viewmat.contiguous(),
@@ -80,7 +103,8 @@ def project_gaussians(
         block_width,
         clip_thresh,
     )
-
+    return (xys, depths, radii, conics, comp, num_tiles_hit, cov3d)
+    
 
 def pack_cov3d_triu(cov3d):
     """
